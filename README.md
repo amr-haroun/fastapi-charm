@@ -9,7 +9,7 @@ This charm demonstrates how to write a Kubernetes sidecar charm with Ops. It man
 ## Requirements
 
 - [Juju](https://juju.is/docs/olm/install-juju) >= 3.6
-- A Kubernetes cloud (e.g. MicroK8s)
+- A Kubernetes cloud (e.g. Canonical K8s or MicroK8s)
 - [Charmcraft](https://documentation.ubuntu.com/charmcraft/stable/) (to build)
 
 ## Build and Deploy
