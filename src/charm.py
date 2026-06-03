@@ -28,6 +28,8 @@ class FastAPIDemoCharm(ops.CharmBase):
         # Learn more about statuses at
         # https://documentation.ubuntu.com/juju/3.6/reference/status/
         self.unit.status = ops.ActiveStatus()
+        # Update the k8s clusterIP server
+        self.unit.open_port(protocol="tcp", port=8000)
 
     def _get_pebble_layer(self) -> ops.pebble.Layer:
         """Pebble layer for the FastAPI demo services."""
