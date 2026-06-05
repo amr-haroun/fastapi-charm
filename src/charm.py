@@ -63,7 +63,7 @@ class FastAPIDemoCharm(ops.CharmBase):
     def _on_demo_server_pebble_ready(self, _: ops.PebbleReadyEvent) -> None:
         self._replan_workload()
 
-    def _get_pebble_layer(self) -> ops.pebble.Layer:
+    def _get_pebble_layer(self, port: int) -> ops.pebble.Layer:
         """Pebble layer for the FastAPI demo services."""
         command = " ".join(
             [
