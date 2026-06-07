@@ -35,6 +35,8 @@ class FastAPIDemoCharm(ops.CharmBase):
         # See https://charmhub.io/data-platform-libs/libraries/data_interfaces
         framework.observe(self.database.on.database_created, self._on_database_endpoint)
         framework.observe(self.database.on.endpoints_changed, self._on_database_endpoint)
+        # Report the unit status after each event.
+        framework.observe(self.on.collect_unit_status, self._on_collect_status)
     
     def _on_database_endpoint(
         self, _: DatabaseCreatedEvent | DatabaseEndpointsChangedEvent
@@ -119,6 +121,27 @@ class FastAPIDemoCharm(ops.CharmBase):
             "DEMO_SERVER_DB_USER": db_data["db_username"],
             "DEMO_SERVER_DB_PASSWORD": db_data["db_password"],
         }
+
+    def _on_collect_status(self, event: ops.CollectStatusEvent) -> None:
+        try:
+            self.load_config(FastAPIConfig)
+        except ValueError as e:
+            event.add_status(ops.BlockedStatus(str(e)))
+        if not self.model.get_relation("database"):
+            # We need the user to do 'juju integrate'.
+            event.add_status(ops.BlockedStatus("Waiting for database relation"))
+        elif not self.database.fetch_relation_data():
+            # We need the charms to finish integrating.
+            event.add_status(ops.WaitingStatus("Waiting for database relation"))
+        try:
+            status = self.container.get_service(self.pebble_service_name)
+        except (ops.pebble.APIError, ops.pebble.ConnectionError, ops.ModelError):
+            event.add_status(ops.MaintenanceStatus("Waiting for Pebble in workload container"))
+        else:
+            if not status.is_running():
+                event.add_status(ops.MaintenanceStatus("Waiting for the service to start up"))
+        # If nothing is wrong, then the status is active.
+        event.add_status(ops.ActiveStatus())
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class FastAPIConfig:
