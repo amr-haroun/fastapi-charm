@@ -121,6 +121,24 @@ class FastAPIDemoCharm(ops.CharmBase):
             "DEMO_SERVER_DB_USER": db_data["db_username"],
             "DEMO_SERVER_DB_PASSWORD": db_data["db_password"],
         }
+    
+    def fetch_database_relation_data(self) -> dict[str, str]:
+        """Retrieve relation data from a database."""
+        relations = self.database.fetch_relation_data()
+        logger.debug("Got following database data: %s", relations)
+        for data in relations.values():
+            if not data:
+                continue
+            logger.info("New database endpoint is %s", data["endpoints"])
+            host, port = data["endpoints"].split(":")
+            db_data = {
+                "db_host": host,
+                "db_port": port,
+                "db_username": data["username"],
+                "db_password": data["password"],
+            }
+            return db_data
+        return {}
 
     def _on_collect_status(self, event: ops.CollectStatusEvent) -> None:
         try:
