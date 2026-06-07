@@ -47,6 +47,16 @@ config:
       description: Default port on which FastAPI is available
       type: int
 
+requires:
+  database:
+    interface: postgresql_client
+    limit: 1
+    optional: false
+
+charm-libs:
+  - lib: data_platform_libs.data_interfaces
+    version: "0"
+
 # Your workload's containers.
 # https://documentation.ubuntu.com/charmcraft/stable/reference/files/charmcraft-yaml-file/#containers
 containers:

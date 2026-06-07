@@ -6,6 +6,15 @@ import ops
 import logging
 import dataclasses
 
+# Import the 'data_interfaces' library.
+# The import statement omits the top-level 'lib' directory
+# because 'charmcraft pack' copies its contents to the project root.
+from charms.data_platform_libs.v0.data_interfaces import (
+    DatabaseCreatedEvent,
+    DatabaseEndpointsChangedEvent,
+    DatabaseRequires,
+)
+
 # Log messages can be retrieved using juju debug-log
 logger = logging.getLogger(__name__)
 
@@ -20,7 +29,19 @@ class FastAPIDemoCharm(ops.CharmBase):
         framework.observe(self.on.config_changed, self._on_config_changed)
         # See 'containers' in charmcraft.yaml.
         self.container = self.unit.get_container("demo-server")
+        # The 'relation_name' comes from the 'charmcraft.yaml file'.
+        # The 'database_name' is the name of the database that our application requires.
+        self.database = DatabaseRequires(self, relation_name="database", database_name="names_db")
+        # See https://charmhub.io/data-platform-libs/libraries/data_interfaces
+        framework.observe(self.database.on.database_created, self._on_database_endpoint)
+        framework.observe(self.database.on.endpoints_changed, self._on_database_endpoint)
     
+    def _on_database_endpoint(
+        self, _: DatabaseCreatedEvent | DatabaseEndpointsChangedEvent
+    ) -> None:
+        """Event is fired when the database is created or its endpoint is changed."""
+        self._replan_workload()
+
     def _on_config_changed(self, _: ops.ConfigChangedEvent) -> None:
         self._replan_workload()
 
@@ -42,11 +63,13 @@ class FastAPIDemoCharm(ops.CharmBase):
             config = self.load_config(FastAPIConfig)
         except ValueError as e:
             logger.error("Configuration error: %s", e)
-            self.unit.status = ops.BlockedStatus(str(e))
             return
+        env = self.get_app_environment()
         try:
             self.container.add_layer(
-                "fastapi_demo", self._get_pebble_layer(config.server_port), combine=True
+                "fastapi_demo",
+                self._get_pebble_layer(config.server_port, env),
+                combine=True,
             )
             logger.info("Added updated layer 'fastapi_demo' to Pebble plan")
 
@@ -54,16 +77,13 @@ class FastAPIDemoCharm(ops.CharmBase):
             # service if required.
             self.container.replan()
             logger.info(f"Replanned with '{self.pebble_service_name}' service")
-
-            self.unit.status = ops.ActiveStatus()
         except (ops.pebble.APIError, ops.pebble.ConnectionError) as e:
             logger.info("Unable to connect to Pebble: %s", e)
-            self.unit.status = ops.MaintenanceStatus("Waiting for Pebble in workload container")
 
     def _on_demo_server_pebble_ready(self, _: ops.PebbleReadyEvent) -> None:
         self._replan_workload()
 
-    def _get_pebble_layer(self, port: int) -> ops.pebble.Layer:
+    def _get_pebble_layer(self, port: int, environment: dict[str, str]) -> ops.pebble.Layer:
         """Pebble layer for the FastAPI demo services."""
         command = " ".join(
             [
@@ -82,10 +102,23 @@ class FastAPIDemoCharm(ops.CharmBase):
                     "summary": "fastapi demo",
                     "command": command,
                     "startup": "enabled",
+                    "environment": environment,
                 }
             },
         }
         return ops.pebble.Layer(pebble_layer)
+    
+    def get_app_environment(self) -> dict[str, str]:
+        """Return a dictionary of environment variables for the application."""
+        db_data = self.fetch_database_relation_data()
+        if not db_data:
+            return {}
+        return {
+            "DEMO_SERVER_DB_HOST": db_data["db_host"],
+            "DEMO_SERVER_DB_PORT": db_data["db_port"],
+            "DEMO_SERVER_DB_USER": db_data["db_username"],
+            "DEMO_SERVER_DB_PASSWORD": db_data["db_password"],
+        }
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class FastAPIConfig:
