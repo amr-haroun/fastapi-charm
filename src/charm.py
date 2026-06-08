@@ -15,6 +15,11 @@ from charms.data_platform_libs.v0.data_interfaces import (
     DatabaseRequires,
 )
 
+# Import cos-lite libraries 
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
+from charms.loki_k8s.v1.loki_push_api import LogForwarder
+from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
+
 # Log messages can be retrieved using juju debug-log
 logger = logging.getLogger(__name__)
 
@@ -39,6 +44,24 @@ class FastAPIDemoCharm(ops.CharmBase):
         framework.observe(self.on.collect_unit_status, self._on_collect_status)
         # Events on charm actions that are run via 'juju run'.
         framework.observe(self.on.get_db_info_action, self._on_get_db_info_action)
+        # Provide a metrics endpoint for Prometheus to scrape.
+        try:
+            config = self.load_config(FastAPIConfig)
+        except ValueError as e:
+            logger.warning("Unable to add metrics: invalid configuration: %s", e)
+        else:
+            self._prometheus_scraping = MetricsEndpointProvider(
+                self,
+                relation_name="metrics-endpoint",
+                jobs=[{"static_configs": [{"targets": [f"*:{config.server_port}"]}]}],
+                refresh_event=self.on.config_changed,
+            )
+        # Enable pushing application logs to Loki.
+        self._logging = LogForwarder(self, relation_name="logging")
+        # Provide grafana dashboards over a relation interface.
+        self._grafana_dashboards = GrafanaDashboardProvider(
+            self, relation_name="grafana-dashboard"
+        )
     
     def _on_database_endpoint(
         self, _: DatabaseCreatedEvent | DatabaseEndpointsChangedEvent
