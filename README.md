@@ -4,7 +4,9 @@ A [Juju](https://juju.is) charm that deploys and operates a demo [FastAPI](https
 
 ## Overview
 
-This charm demonstrates how to write a Kubernetes sidecar charm with Ops. It manages an OCI container running a small FastAPI application (`ghcr.io/canonical/api_demo_server`) via the [Pebble](https://documentation.ubuntu.com/pebble/) API, starting a `uvicorn` server on port 8000.
+This charm demonstrates how to write a Kubernetes sidecar charm with Ops. It manages an OCI container running a small FastAPI application (`ghcr.io/canonical/api_demo_server`) via the [Pebble](https://documentation.ubuntu.com/pebble/) API, starting a `uvicorn` server.
+
+The charm requires a `database` relation (`postgresql_client` interface). When integrated, it injects database connection data into the workload environment.
 
 ## Requirements
 
@@ -21,13 +23,30 @@ charmcraft pack
 # Deploy to a Kubernetes model
 juju deploy ./fastapi-demo_*.charm \
   --resource demo-server-image=ghcr.io/canonical/api_demo_server:1.0.4
+
+# Deploy PostgreSQL and integrate
+juju deploy postgresql-k8s --channel 14/stable --trust
+juju integrate fastapi-demo postgresql-k8s
 ```
 
 ## Configuration
 
 | Option      | Default | Description |
 |-------------|---------|-------------|
-| `log-level` | `info`  | Gunicorn log level. Accepted values: `debug`, `info`, `warning`, `error`, `critical` |
+| `log-level` | `info`  | Workload log level. Accepted values: `debug`, `info`, `warning`, `error`, `critical` |
+| `server-port` | `8000` | Default port on which FastAPI is available |
+
+## Actions
+
+Run `get-db-info` to retrieve database connection details from the current relation.
+
+```bash
+# Host/port only
+juju run fastapi-demo/0 get-db-info
+
+# Include username/password
+juju run fastapi-demo/0 get-db-info show-password=true
+```
 
 ## Development
 
