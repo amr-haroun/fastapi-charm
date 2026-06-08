@@ -37,6 +37,8 @@ class FastAPIDemoCharm(ops.CharmBase):
         framework.observe(self.database.on.endpoints_changed, self._on_database_endpoint)
         # Report the unit status after each event.
         framework.observe(self.on.collect_unit_status, self._on_collect_status)
+        # Events on charm actions that are run via 'juju run'.
+        framework.observe(self.on.get_db_info_action, self._on_get_db_info_action)
     
     def _on_database_endpoint(
         self, _: DatabaseCreatedEvent | DatabaseEndpointsChangedEvent
@@ -161,6 +163,36 @@ class FastAPIDemoCharm(ops.CharmBase):
         # If nothing is wrong, then the status is active.
         event.add_status(ops.ActiveStatus())
 
+    def _on_get_db_info_action(self, event: ops.ActionEvent) -> None:
+        """Return information about the integrated database.
+
+        This method is called when "get_db_info" action is called. It shows information about
+        database access points by calling the `fetch_database_relation_data` method and creates
+        an output dictionary containing the host, port, if show_password is True, then include
+        username, and password of the database.
+
+        If the PostgreSQL charm is not integrated, the output is set to "No database connected".
+
+        Learn more about actions at https://documentation.ubuntu.com/ops/latest/howto/manage-actions/
+        """
+        params = event.load_params(GetDbInfoAction, errors="fail")
+        db_data = self.fetch_database_relation_data()
+        if not db_data:
+            event.fail("No database connected")
+            return
+        output = {
+            "db-host": db_data.get("db_host", None),
+            "db-port": db_data.get("db_port", None),
+        }
+        if params.show_password:
+            output.update(
+                {
+                    "db-username": db_data.get("db_username", None),
+                    "db-password": db_data.get("db_password", None),
+                }
+            )
+        event.set_results(output)
+
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class FastAPIConfig:
     """Configuration for the FastAPI demo charm."""
@@ -172,6 +204,13 @@ class FastAPIConfig:
         """Validate the configuration."""
         if self.server_port == 22:
             raise ValueError("Invalid port number, 22 is reserved for SSH")
-        
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class GetDbInfoAction:
+    """Fetches database authentication information."""
+
+    show_password: bool
+    """Show username and password in output information."""
+
 if __name__ == "__main__":  # pragma: nocover
     ops.main(FastAPIDemoCharm)
