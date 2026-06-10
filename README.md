@@ -8,6 +8,8 @@ This charm demonstrates how to write a Kubernetes sidecar charm with Ops. It man
 
 The charm requires a `database` relation (`postgresql_client` interface). When integrated, it injects database connection data into the workload environment.
 
+For observability, the charm also supports COS Lite integration: it forwards workload logs over the `logging` relation and provides `metrics-endpoint` and `grafana-dashboard` relations.
+
 ## Requirements
 
 - [Juju](https://juju.is/docs/olm/install-juju) >= 3.6
@@ -27,6 +29,12 @@ juju deploy ./fastapi-demo_*.charm \
 # Deploy PostgreSQL and integrate
 juju deploy postgresql-k8s --channel 14/stable --trust
 juju integrate fastapi-demo postgresql-k8s
+
+# Optional: integrate logs with COS Lite Loki (cross-model)
+# From the COS model:
+#   juju offer loki:logging
+# From your app model:
+juju integrate fastapi-demo <cos-model>.loki
 ```
 
 ## Configuration
